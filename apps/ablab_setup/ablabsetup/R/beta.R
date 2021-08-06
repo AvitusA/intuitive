@@ -1,3 +1,4 @@
+##' @export
 days_vs_volume <- function(days, daily_volume, volume_split, theta_a, theta_b) {
   tibble::tibble(day = days,
                  total_volume = days * daily_volume,
@@ -28,6 +29,7 @@ posterior_summary <- function(samples, levels) {
        )))
 }
 
+##' @export
 effect_distributions <- function(days_vs_volume_tbl,
                                  a_prior = list(alpha = 1, beta = 1),
                                  b_prior = list(alpha = 1, beta = 1),
@@ -53,10 +55,11 @@ effect_distributions <- function(days_vs_volume_tbl,
     dplyr::mutate(across(c(mean, low, high), .fns = function(x) { x - 1 })) # Effect size rather than quotient
 }
 
+##' @export
 plot_uplift_credible_vs_time <- function(days_vs_distr_tbl, critical_effect = 0) {
   the_levels <- sort(unique(days_vs_distr_tbl$level), decreasing = T)
   level_labels <- paste(round(100 * the_levels), "%", sep = "")
-  
+
   days_vs_distr_tbl %>%
     dplyr::mutate(level = factor(level, levels = the_levels, labels = level_labels)) %>%
     ggplot2::ggplot(ggplot2::aes(x = day)) +
@@ -73,6 +76,7 @@ plot_uplift_credible_vs_time <- function(days_vs_distr_tbl, critical_effect = 0)
     ggplot2::scale_fill_brewer(name = "Confidence", direction =  -1)
 }
 
+##' @export
 timeline_insights <- function(day_vs_distr_tbl, critical_effect) {
   first_day <- function(x, predicate, name) {
     predicate <- rlang::enexpr(predicate)
@@ -83,7 +87,7 @@ timeline_insights <- function(day_vs_distr_tbl, critical_effect) {
       dplyr::mutate(type = name) %>%
       dplyr::ungroup()
   }
-  
+
   dplyr::bind_rows(
     first_day(day_vs_distr_tbl, low > 0, "gt_0"),
     first_day(day_vs_distr_tbl, high < 0, "lt_0"),

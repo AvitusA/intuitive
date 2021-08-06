@@ -1,4 +1,5 @@
 FROM rocker/shiny:4.1.0
+
 RUN install2.r \
     devtools \
     dplyr \
@@ -6,13 +7,14 @@ RUN install2.r \
     purrr \
     rlang \
     tidyr \
-    tibble
+    tibble \
+    ggplot2
 
-COPY apps/* /srv/shiny-server/
+RUN rm -r /srv/shiny-server
+COPY ./apps /srv/shiny-server
+
 RUN Rscript -e "devtools::install('/srv/shiny-server/ablab_setup/ablabsetup')"
 
-# sudo rm /srv/shiny-server/index.html
-# sudo rm -rf /srv/shiny-server/sample-apps
+COPY shiny-server.conf /etc/shiny-server/shiny-server.conf
 USER shiny
-
 CMD ["/usr/bin/shiny-server"]
