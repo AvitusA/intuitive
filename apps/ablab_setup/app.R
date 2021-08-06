@@ -39,7 +39,7 @@ ui <- shiny::fluidPage(
                 "Experiment Success Criteria (%)",
                 min = -100,
                 max = 100,
-                value = 1
+                value = 3
             ),
             shiny::numericInput(
                 "a_prior_alpha",
