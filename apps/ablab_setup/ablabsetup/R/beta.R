@@ -56,9 +56,12 @@ effect_distributions <- function(days_vs_volume_tbl,
 }
 
 ##' @export
-plot_uplift_credible_vs_time <- function(days_vs_distr_tbl, critical_effect = 0) {
+plot_uplift_credible_vs_time <- function(days_vs_distr_tbl, volume_per_day, critical_effect = 0) {
   the_levels <- sort(unique(days_vs_distr_tbl$level), decreasing = T)
   level_labels <- paste(round(100 * the_levels), "%", sep = "")
+
+  day_breaks <- c(7, 14, seq(28, max(days_vs_distr_tbl$day), 28))
+  volume_breaks <- day_breaks * volume_per_day
 
   days_vs_distr_tbl %>%
     dplyr::mutate(level = factor(level, levels = the_levels, labels = level_labels)) %>%
@@ -68,13 +71,39 @@ plot_uplift_credible_vs_time <- function(days_vs_distr_tbl, critical_effect = 0)
                                       ymax = high),
                          color = "gray50") +
     ggplot2::geom_hline(yintercept = critical_effect) +
-    ggplot2::scale_x_sqrt(breaks = c(7, 14, 21, seq(28, max(days_vs_distr_tbl$day), 28)),
+    ggplot2::scale_x_sqrt(breaks = day_breaks,
                           minor_breaks = seq(0, max(days_vs_distr_tbl$day), 7),
-                          name = "Days") +
+                          name = "Experiment Duration (Days)",
+                          sec.axis = ggplot2::sec_axis(~ . * volume_per_day,
+                                                       name = "Total Volume",
+                                                       breaks = volume_breaks,
+                                                       labels = human_format)) +
     ggplot2::scale_y_continuous(labels = scales::percent,
                                 name = "Effect Size") +
     ggplot2::scale_fill_brewer(name = "Confidence", direction =  -1)
 }
+
+human_format <- Vectorize(function(x, digits = 2) {
+  suffix <- NA
+  mantissa <- NA
+  if (x < 1e3) {
+    suffix <- ""
+    mantissa <- x
+  } else if(x < 1e6) {
+    suffix <- "k"
+    mantissa <- x / 1e3
+  } else if(x < 1e9) {
+    suffix <- "M"
+    mantissa <- x / 1e6
+  } else if(x < 1e12) {
+    suffix <- "G"
+    mantissa <- x / 1e9
+  } else {
+    suffix <- "T"
+    mantissa <- x / 1e12
+  }
+  paste(signif(mantissa, digits), suffix, sep = "")
+})
 
 ##' @export
 timeline_insights <- function(day_vs_distr_tbl, critical_effect) {
@@ -96,4 +125,14 @@ timeline_insights <- function(day_vs_distr_tbl, critical_effect) {
   ) %>%
     dplyr::arrange(day) %>%
     dplyr::select(day, level, type)
+}
+
+fit_beta <- function(level, theta_lower, theta_upper) {
+ # tail_size <-
+  minpack.lm::nls.lm(c(1,1),
+         fn = function(x) {
+           c(pbeta(theta_lower, x[1], x[2]) - q1,
+             pbeta(theta_upper, x[1], x[2]) - q2)
+         },
+         lower = c(1, 1))
 }
