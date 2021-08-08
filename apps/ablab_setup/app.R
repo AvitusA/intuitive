@@ -43,60 +43,70 @@ ui <- shiny::fluidPage(
                 shiny::helpText("The default parameters on this tab are sane, and are most likely what you want if you do not understand what they do."),
                 shiny::sliderInput(
                     "split",
-                    "% of Exposures to Version A",
+                    "% of Exposures assigned to Version A",
                     min = 0.1,
                     max = 99.9,
                     value = 50
                 ),
-                shiny::h4("Priors"),
+                shiny::h4("Prior: Version A"),
                 fluidRow(
+                    column(4,
+                           shiny::selectInput("a_distr",
+                                              "Distribution",
+                                              c("Beta"),
+                                              selected = "Beta")),
                     column(
-                        6,
+                        4,
                         shiny::numericInput(
                             "a_prior_alpha",
-                            "$$\\alpha_A$$",
+                            "alpha",
                             min = 1,
                             max = Inf,
                             value = 1
                         )
                     ),
                     column(
-                        6,
+                        4,
                         shiny::numericInput(
                             "a_prior_beta",
-                            "$$\\beta_A$$",
+                            "beta",
                             min = 1,
                             max = Inf,
                             value = 1
                         )
                     )
                 ),
+                shiny::h4("Prior: Version B"),
                 fluidRow(
+                    column(4,
+                           shiny::selectInput("b_distr",
+                                              "Distribution",
+                                              c("Beta"),
+                                              selected = "Beta")),
                     column(
-                        6,
+                        4,
                         shiny::numericInput(
                             "b_prior_alpha",
-                            "$$\\alpha_B$$",
+                            "alpha",
                             min = 1,
                             max = Inf,
                             value = 1
                         )
                     ),
                     column(
-                        6,
+                        4,
                         shiny::numericInput(
                             "b_prior_beta",
-                            "$$\\beta_B$$",
+                            "beta",
                             min = 1,
                             max = Inf,
                             value = 1
                         )
                     )
                 ),
-                shiny::helpText("Beta distributions are assumed"),
                 shiny::selectInput(
                     "samples",
-                    "Quality",
+                    "Computation quality",
                     c("fast", "accurate", "very accurate"),
                     "accurate"
                 ),
