@@ -65,7 +65,7 @@ credible_vs_time <- function(days_vs_distr_tbl, volume_per_day, levels) {
                                            if(crit > 0) { 
                                              paste("B is at least ", round(crit * 100), "% better than A", sep = "")
                                            } else {
-                                             paste("B is no more than ", round(-crit * 100), "% worse than A", sep = "")
+                                             paste("B is not more than ", round(-crit * 100), "% worse than A", sep = "")
                                            }))) %>%
     ggplot2::ggplot(ggplot2::aes(x = day)) +
     ggplot2::geom_line(ggplot2::aes(y = value, color = name)) +
@@ -134,8 +134,8 @@ timeline_insights <- function(day_vs_distr_tbl, levels) {
       dplyr::ungroup()
   }
   critical_effect <- unique(day_vs_distr_tbl$crit)
-  p_gt_0 <- dplyr::bind_rows(first_day(p_gt_0 > level, "p_gt_0", "B is better than A"),
-                             first_day(p_gt_0 < 1 - level, "p_gt_0", "B is worse than A"))
+  p_gt_0 <- dplyr::bind_rows(first_day(p_gt_0 > level, "p_gt_0", "B is better than A."),
+                             first_day(p_gt_0 < 1 - level, "p_gt_0", "B is worse than A."))
   
   p_gt_crit <- if(critical_effect == 0) {
     NULL
