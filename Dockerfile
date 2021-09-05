@@ -1,14 +1,8 @@
 FROM rocker/shiny-verse:4.1.0
 COPY ./port-wrapper.sh /
-#RUN install2.r \
-#    devtools \
-#    dplyr \
-#    magrittr \
-#    purrr \
-#    rlang \
-#    tidyr \
-#    tibble \
-#    ggplot2
+RUN install2.r \
+  HDInterval \
+  ggrepel
 
 RUN rm -r /srv/shiny-server
 COPY ./apps /srv/shiny-server

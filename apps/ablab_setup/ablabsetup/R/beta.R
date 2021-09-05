@@ -15,18 +15,10 @@ quotient_samples <- function(numerator,
     rbeta(samples, denominator$alpha, denominator$beta)
 }
 
-posterior_summary <- function(samples, levels) {
-  tail_size <- (1 - levels) / 2
-  low_quantiles <- tail_size
-  high_quantiles <- 1 - tail_size
-  q <- quantile(samples, c(low_quantiles, high_quantiles))
-  # This can be replaced with HDI instead of quantiles
-  list(mean = mean(samples),
-       levels = purrr::imap(levels, ~ list(
-         "level" = .x,
-         "low" = q[[.y]],
-         "high" = q[[length(levels) + .y]]
-       )))
+posterior_summary <- function(samples, crit) {
+  list(p_gt_0 = mean(samples > 1),
+       p_gt_crit = mean(samples > (1 + crit)),
+       crit = crit)
 }
 
 ##' @export
@@ -34,7 +26,7 @@ effect_distributions <- function(days_vs_volume_tbl,
                                  a_prior = list(alpha = 1, beta = 1),
                                  b_prior = list(alpha = 1, beta = 1),
                                  samples = 10e4,
-                                 levels = c(0.8, 0.95)) {
+                                 crit = 0) {
   days_vs_volume_tbl %>%
     dplyr::rowwise() %>%
     dplyr::group_split() %>%
@@ -47,42 +39,65 @@ effect_distributions <- function(days_vs_volume_tbl,
                                                              list(alpha = .x$a_alpha + a_prior$alpha,
                                                                   beta = .x$a_beta + a_prior$beta),
                                                            samples),
-                                          levels)))) %>%
+                                          crit)))) %>%
     dplyr::bind_rows() %>%
-    tidyr::unnest_wider(sample_summary) %>%
-    tidyr::unnest(levels) %>%
-    tidyr::unnest_wider(levels) %>%
-    dplyr::mutate(across(c(mean, low, high), .fns = function(x) { x - 1 })) # Effect size rather than quotient
+    tidyr::unnest_wider(sample_summary)
 }
 
 ##' @export
-plot_uplift_credible_vs_time <- function(days_vs_distr_tbl, volume_per_day, critical_effect = 0) {
-  the_levels <- sort(unique(days_vs_distr_tbl$level), decreasing = T)
-  level_labels <- paste(round(100 * the_levels), "%", sep = "")
-
+credible_vs_time <- function(days_vs_distr_tbl, volume_per_day, levels) {
   day_breaks <- c(7, 14, seq(28, max(days_vs_distr_tbl$day), 28))
   volume_breaks <- day_breaks * volume_per_day
-
-  days_vs_distr_tbl %>%
-    dplyr::mutate(level = factor(level, levels = the_levels, labels = level_labels)) %>%
+  crit <- unique(days_vs_distr_tbl$crit)
+  
+  all_timeline_insights <- timeline_insights(days_vs_distr_tbl, levels)
+  
+  filtered_days_vs_distr_tbl <- days_vs_distr_tbl %>%
+    dplyr::select(day, p_gt_0, p_gt_crit) %>%
+    tidyr::pivot_longer(c(p_gt_0, p_gt_crit)) %>%
+    dplyr::filter(crit != 0 | name != "p_gt_crit") %>%
+    dplyr::left_join(all_timeline_insights, by = c("day", "name"))
+  filtered_days_vs_distr_tbl %>% 
+    # TODO: Factor labels instead
+    dplyr::mutate(name = factor(name, 
+                                levels = c("p_gt_0", "p_gt_crit"),
+                                labels = c("B is better than A",
+                                           if(crit > 0) { 
+                                             paste("B is at least ", round(crit * 100), "% better than A", sep = "")
+                                           } else {
+                                             paste("B is no more than ", round(-crit * 100), "% worse than A", sep = "")
+                                           }))) %>%
     ggplot2::ggplot(ggplot2::aes(x = day)) +
-    ggplot2::geom_ribbon(ggplot2::aes(fill = level,
-                                      ymin = low,
-                                      ymax = high),
-                         color = "gray50") +
-    ggplot2::geom_hline(yintercept = critical_effect) +
+    ggplot2::geom_line(ggplot2::aes(y = value, color = name)) +
+    ggrepel::geom_label_repel(ggplot2::aes(y = value, label = id), nudge_y = -0.15) +
     ggplot2::scale_x_sqrt(breaks = day_breaks,
                           minor_breaks = seq(0, max(days_vs_distr_tbl$day), 7),
+                          guide = ggplot2::guide_axis(angle = 45),
                           name = "Experiment Duration (Days)",
                           sec.axis = ggplot2::sec_axis(~ . * volume_per_day,
-                                                       name = "Total Volume",
+                                                       name = "Total Exposures",
                                                        breaks = volume_breaks,
-                                                       labels = human_format)) +
+                                                       labels = human_format,
+                                                       guide = ggplot2::guide_axis(angle = 45))) +
     ggplot2::scale_y_continuous(labels = scales::percent,
-                                name = "Effect Size") +
-    ggplot2::scale_fill_brewer(name = "Confidence", direction =  -1)
+                                name = "Probability",
+                                breaks = c(0, 0.05, 0.10, 0.20, 
+                                           0.5,
+                                           0.8, 0.9, 0.95),
+                                guide = ggplot2::guide_axis(check.overlap = T)) +
+    ggplot2::coord_cartesian(ylim = c(0, 1)) +
+    ggplot2::scale_color_discrete("") +
+    ggplot2::theme(legend.position = "bottom",
+                   axis.text = ggplot2::element_text(size = 14),
+                   axis.title.x = ggplot2::element_text(size = 16),
+                   axis.title.y = ggplot2::element_text(size = 16),
+                   legend.text = ggplot2::element_text(size = 16)) -> the_plot
+  
+  list(plot = the_plot,
+       insights = all_timeline_insights)
 }
 
+##' @export
 human_format <- Vectorize(function(x, digits = 2) {
   suffix <- NA
   mantissa <- NA
@@ -106,33 +121,37 @@ human_format <- Vectorize(function(x, digits = 2) {
 })
 
 ##' @export
-timeline_insights <- function(day_vs_distr_tbl, critical_effect) {
-  first_day <- function(x, predicate, name) {
+timeline_insights <- function(day_vs_distr_tbl, levels) {
+  first_day <- function(predicate, name, desc) {
     predicate <- rlang::enexpr(predicate)
     day_vs_distr_tbl %>%
-      dplyr::group_by(level) %>%
+      tidyr::crossing(level = levels) %>%
       dplyr::filter(!!predicate) %>%
+      dplyr::group_by(level) %>%
       dplyr::filter(dplyr::row_number() == 1) %>%
-      dplyr::mutate(type = name) %>%
+      dplyr::mutate(name = name,
+                    desc = desc) %>%
       dplyr::ungroup()
   }
-
-  dplyr::bind_rows(
-    first_day(day_vs_distr_tbl, low > 0, "gt_0"),
-    first_day(day_vs_distr_tbl, high < 0, "lt_0"),
-    first_day(day_vs_distr_tbl, low > critical_effect, "gt_crit"),
-    first_day(day_vs_distr_tbl, high < critical_effect, "lt_crit")
-  ) %>%
+  critical_effect <- unique(day_vs_distr_tbl$crit)
+  p_gt_0 <- dplyr::bind_rows(first_day(p_gt_0 > level, "p_gt_0", "B is better than A"),
+                             first_day(p_gt_0 < 1 - level, "p_gt_0", "B is worse than A"))
+  
+  p_gt_crit <- if(critical_effect == 0) {
+    NULL
+  } else {
+    dplyr::bind_rows(first_day(p_gt_crit > level, "p_gt_crit",
+                               dplyr::if_else(critical_effect > 0,  
+                                              paste("B is at least ", round(critical_effect*100), "% better than A.", sep = ""),
+                                              paste("B is not more than ", round(-critical_effect*100), "% worse than A.", sep = ""))),
+                     first_day(p_gt_crit < 1 - level, "p_gt_crit",
+                               dplyr::if_else(critical_effect > 0,
+                                              paste("B is NOT at least ", round(critical_effect*100), "% better than A.", sep = ""),
+                                              paste("B is at least ", round(-critical_effect*100), "% worse than A.", sep = ""))))
+      
+  }
+  
+  dplyr::bind_rows(p_gt_0, p_gt_crit) %>%
     dplyr::arrange(day) %>%
-    dplyr::select(day, level, type)
-}
-
-fit_beta <- function(level, theta_lower, theta_upper) {
- # tail_size <-
-  minpack.lm::nls.lm(c(1,1),
-         fn = function(x) {
-           c(pbeta(theta_lower, x[1], x[2]) - q1,
-             pbeta(theta_upper, x[1], x[2]) - q2)
-         },
-         lower = c(1, 1))
+    dplyr::transmute(id = dplyr::row_number(), day, total_volume, level, name, desc)
 }
