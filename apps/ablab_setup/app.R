@@ -1,6 +1,9 @@
 library(ablabsetup)
 
 ui <- shiny::fluidPage(
+    shiny::tags$head(
+        shiny::tags$link(rel = "stylesheet", type = "text/css", href = "style.css")
+    ),
     shiny::withMathJax(),
     shiny::titlePanel("A/B Test - Sample Size Calculator"),
     shiny::sidebarLayout(
