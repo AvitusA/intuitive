@@ -10,7 +10,6 @@
 library(shiny)
 library(tidyverse)
 library(plotly)
-library(ggsci)
 
 # Define UI for application that draws a histogram
 ui <- fluidPage(
@@ -19,13 +18,13 @@ ui <- fluidPage(
   sidebarLayout(
     sidebarPanel(
       numericInput(inputId = "initial_monthly_revenue",
-                   label = "Monthly Rev Per New Customer",
-                   value = 5 * 99),
+                   label = "Average Monthly Revenue Per New Customer",
+                   value = 2 * 99),
       numericInput(inputId = "customer_growth",
-                   label = "Annual Per-Customer Revenue Growth",
-                   value = 0.1),
+                   label = "Annual Per-Customer Revenue Growth [-1,∞)",
+                   value = 0.2),
       numericInput(inputId = "retention",
-                   label = "Month-Over-Month Retention",
+                   label = "Month-Over-Month Retention [0,1]",
                    value = 0.8),
       hr(),
       numericInput(inputId = "monthly_acquisition",
@@ -44,7 +43,7 @@ ui <- fluidPage(
       plotlyOutput("arr_plot"),
       h2("Revenue To Date"),
       plotlyOutput("cumrev_plot"),
-      h2("Payback Time on CAC (Revenue only)"),
+      h2("Payback Time on Cost of Acquisition (Revenue only)"),
       plotlyOutput("pbt_plot")
     )
   )

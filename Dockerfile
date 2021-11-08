@@ -1,8 +1,9 @@
-FROM rocker/shiny-verse:4.1.0
+FROM rocker/shiny-verse:4.1.1
 COPY ./port-wrapper.sh /
 RUN install2.r \
   HDInterval \
-  ggrepel
+  ggrepel \
+  plotly
 
 RUN rm -r /srv/shiny-server
 COPY ./apps /srv/shiny-server
