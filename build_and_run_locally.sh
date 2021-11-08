@@ -1,3 +1,3 @@
 #!/bin/bash
-docker build -t intuitive .
-docker run -p 3838:3838 -it intuitive
+podman build -t intuitive .
+podman run -p 3838:3838 -it intuitive

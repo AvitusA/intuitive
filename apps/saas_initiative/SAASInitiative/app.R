@@ -19,7 +19,7 @@ ui <- fluidPage(
     sidebarPanel(
       numericInput(inputId = "initial_monthly_revenue",
                    label = "Average Monthly Revenue Per New Customer",
-                   value = 2 * 99),
+                   value = 3 * 99),
       numericInput(inputId = "customer_growth",
                    label = "Annual Per-Customer Revenue Growth [-1,∞)",
                    value = 0.2),
@@ -30,8 +30,11 @@ ui <- fluidPage(
       numericInput(inputId = "monthly_acquisition",
                    label = "Monthly Nr of New Customers",
                    value = 100),
+      numericInput(inputId = "cac_per_customer",
+                   label = "CAC per Customer",
+                   value = 1500),
       numericInput(inputId = "cac_per_month",
-                   label = "Monthly Fixed Cost of Acquisition",
+                   label = "Monthly Fixed CAC",
                    value = 0)
     ),
     
@@ -41,9 +44,13 @@ ui <- fluidPage(
       plotlyOutput("mau_plot"),
       h2("Annual Returning Revenue"),
       plotlyOutput("arr_plot"),
+      h2("Monthly (Revenue - CAC)"),
+      plotlyOutput("acac_plot"),
       h2("Revenue To Date"),
       plotlyOutput("cumrev_plot"),
-      h2("Payback Time on Cost of Acquisition (Revenue only)"),
+      h2("(Revenue - CAC) to date"),
+      plotlyOutput("cum_acac_plot"),
+      h2("Payback Time on Cost of Acquisition (Revenue only), Single Cohort"),
       plotlyOutput("pbt_plot")
     )
   )
@@ -88,11 +95,12 @@ pbt_plot <- function(cac_per_month, cohort_size, retention, initial_revenue, cus
 
 months_to_simulate <- 48
 
-simulate <- function(months_to_simulate, initial_cohort_size, retention, initial_revenue, customer_growth) {
+simulate <- function(months_to_simulate, initial_cohort_size, retention, initial_revenue, customer_growth, cac_per_customer, cac_per_month) {
   cohorts <- crossing(month = seq(1:months_to_simulate),
                       cohort = seq(1:months_to_simulate)) %>%
     mutate(mau = cohort_mau(cohort, month, initial_cohort_size, retention),
-           revenue = cohort_revenue(cohort, month, initial_cohort_size, retention, initial_revenue, customer_growth))
+           revenue = cohort_revenue(cohort, month, initial_cohort_size, retention, initial_revenue, customer_growth),
+           cac = if_else(cohort == month, as.double(cac_per_customer * initial_cohort_size + cac_per_month), 0))
   cohorts
 }
 
@@ -127,6 +135,31 @@ cumrev_plot <- function(sim) {
     scale_y_continuous(name = "Cumulative Revenue")
 }
 
+acac_plot <- function(sim) {
+  sim %>%
+    replace_na(list(revenue = 0)) %>%
+    mutate(revenue_acac = revenue - cac) %>%
+    group_by(month) %>%
+    summarize(revenue_acac = sum(revenue_acac), .groups = "drop") %>%
+    ggplot(aes(x = month, y = revenue_acac)) +
+    geom_line() +
+    scale_y_continuous(name = "Revenue - CAC")
+}
+
+cum_acac_plot <- function(sim) {
+  sim %>%
+    replace_na(list(revenue = 0)) %>%
+    mutate(revenue_acac = revenue - cac) %>%
+    group_by(month) %>%
+    summarize(revenue_acac = sum(revenue_acac), .groups = "drop") %>% 
+    arrange(month) %>%
+    mutate(cum_revenue_acac = cumsum(revenue_acac)) %>%
+    ggplot(aes(x = month, y = cum_revenue_acac)) +
+    geom_line() +
+    scale_y_continuous(name = "Cumulative (Revenue - CAC)")
+}
+
+
 # Define server logic required to draw a histogram
 server <- function(input, output) {
   sim <- reactive({
@@ -134,7 +167,9 @@ server <- function(input, output) {
              initial_cohort_size = input$monthly_acquisition,
              retention = input$retention,
              initial_revenue = input$initial_monthly_revenue,
-             customer_growth = input$customer_growth)
+             customer_growth = input$customer_growth,
+             cac_per_customer = input$cac_per_customer,
+             cac_per_month = input$cac_per_month)
   })
   
   output$mau_plot <- renderPlotly(
@@ -149,6 +184,14 @@ server <- function(input, output) {
     cumrev_plot(sim()) %>% ggplotly()
   )
   
+  output$acac_plot <- renderPlotly(
+    acac_plot(sim()) %>% ggplotly()
+  )
+
+  output$cum_acac_plot <- renderPlotly(
+    cum_acac_plot(sim()) %>% ggplotly()
+  )
+    
   output$pbt_plot <- renderPlotly(
     pbt_plot(cac_per_month = input$cac_per_month, 
              cohort_size = input$monthly_acquisition,
