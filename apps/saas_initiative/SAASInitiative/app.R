@@ -32,7 +32,7 @@ ui <- fluidPage(
                    value = 100),
       numericInput(inputId = "cac_per_customer",
                    label = "CAC per Customer",
-                   value = 1500),
+                   value = 1000),
       numericInput(inputId = "cac_per_month",
                    label = "Monthly Fixed CAC",
                    value = 0)
