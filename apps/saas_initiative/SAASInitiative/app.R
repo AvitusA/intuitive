@@ -42,7 +42,7 @@ ui <- fluidPage(
     mainPanel(
       h2("Monthly Active Users"),
       plotlyOutput("mau_plot"),
-      h2("Annual Returning Revenue"),
+      h2("Annual Recurring Revenue"),
       plotlyOutput("arr_plot"),
       h2("Monthly (Revenue - CAC)"),
       plotlyOutput("acac_plot"),
